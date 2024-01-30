@@ -1,0 +1,264 @@
+fortran,cpp,result,reason
+"! { dg-do compile }
+! PR fortran/22503, PR fortran/32899
+! Suggest use of appropriate comparison operator
+
+program foo
+  logical :: b
+  b = b .eq. b  ! { dg-error ""must be compared with"" }
+  b = b .ne. b  ! { dg-error ""must be compared with"" }
+end program","#include <stdio.h>
+#include <stdbool.h>
+
+int main() {
+    bool b;
+    b = (b == b);
+    b = (b != b);
+    return 0;
+}",True,
+"! { dg-do compile }
+! Tests fix for PR29211, in which an ICE would be produced by FORALL assignments
+! with dependencies.
+!
+! Contributed by Paul Thomas  <pault@gcc.gnu.org>
+!
+  character(12), dimension(2) :: a, b
+  a= (/""abcdefghijkl"",""mnopqrstuvwx""/)
+! OK because it uses gfc_trans_assignment
+  forall (i=1:2) b(i) = a(i)
+! Was broken - gfc_trans_assign_need_temp had no handling of string lengths
+  forall (i=1:2) a(3-i) = a(i)
+end
+","#include <string>
+#include <array>
+
+int main() {
+    std::array<std::string, 2> a = { ""abcdefghijkl"", ""mnopqrstuvwx"" };
+    std::array<std::string, 2> b;
+    for(int i = 0; i < 2; i++)
+        b[i] = a[i];
+    for(int i = 0; i < 2; i++)
+        a[1-i] = a[i];
+    return 0;
+}",True,
+"      SUBROUTINE BSUTIM( JOB, ID )
+ 
+C     COMMON/NINFO/ NODEID, NUMNOD
+      COMMON /BTIME1/ TIME0,RTIME,TIMEB1,TIMEB2,TIMES1
+      COMMON /BTIME2/ TIMEBS(0:2),TIMINT,TIMESP(0:2)
+ 
+*  Prior to call thisroutine, BSTIME( TIME0, 1 ) should be called
+*  for initialize the time offset TIME0.
+*
+*     print *,'bsutim .. job, id ',job,id
+      CALL BSTIME( RTIME, 1)
+      DTIME      = RTIME - TIME0
+ 
+      IF( JOB .EQ. 0 ) THEN
+*       For BASES computing time
+*         ID  = 0  : Grid defining step
+*               1  : Integration step
+*               2  : Others
+ 
+          TIMEBS(ID) = TIMEBS(ID) + DTIME
+ 
+          IF( ID .LE. 1 ) THEN
+              TIMINT = TIMINT + DTIME
+          ENDIF
+      ELSE
+*       For SPRING computing time
+*         ID  = 0  : Event generation
+*               1  : Overhead
+*               2  : Others
+ 
+          TIMESP(ID) = TIMESP(ID) + DTIME
+ 
+      ENDIF
+ 
+      TIME0      = RTIME
+ 
+      RETURN
+      END
+","#include <array>
+
+// Assuming BSTIME is a function somewhere in the C++ code:
+void BSTIME(double& RTIME, int);
+
+// Global storage equivalent to the COMMON blocks
+std::array<double, 3> TIMEBS = {0.0, 0.0, 0.0};
+std::array<double, 3> TIMESP = {0.0, 0.0, 0.0};
+double TIMINT = 0.0;
+
+void BSUTIM(double& TIME0, double& RTIME, int JOB, int ID)
+{
+    BSTIME(RTIME, 1);
+    double DTIME = RTIME - TIME0;
+
+    if (JOB == 0)
+    {
+        TIMEBS[ID] += DTIME;
+
+        if (ID <= 1)
+        {
+            TIMINT += DTIME;
+        }
+    }
+    else
+    {
+        TIMESP[ID] += DTIME;
+    }
+
+    TIME0 = RTIME;
+}",True,
+"program main
+  include ""392.h""
+  write(*,*) pass
+end program main
+","#include ""392.h""
+
+int main() {
+    std::cout << pass << std::endl;
+    return 0;
+}",True,
+"!>@file   solver_33_array.f90
+!!@brief  module solver_33_array
+!!
+!!@author H. Matsui
+!!@date    programmed by H.Matsui on July, 2006
+!
+!>@brief Solve linear equation for vector
+!!
+!!@verbatim
+!!     definition of matrix
+!!            / a(1,1)  a(1,2)  a(1,3)  \
+!!       A =  | a(2,1)  a(2,2)  a(2,3)  |
+!!            \ a(3,1)  a(3,2)  a(3,3)  /
+!!
+!!      subroutine solve_33_array(x, b, a)
+!!
+!!     x(3):   Solution
+!!     b(3):   Right hand vector
+!!     a(3,3): coeeficients of matrix
+!!
+!!    Equation:
+!!      b(1) = a(1,1)*x(1) + a(1,2)*x(2) + a(1,3)*x(3)
+!!      b(2) = a(2,1)*x(1) + a(2,2)*x(2) + a(2,3)*x(3)
+!!      b(3) = a(3,1)*x(1) + a(3,2)*x(2) + a(3,3)*x(3)
+!!
+!!      subroutine solve_22_array(x, b, a)
+!!    Equation:
+!!      b(1) = a(1,1)*x(1) + a(1,2)*x(2)
+!!      b(2) = a(2,1)*x(1) + a(2,2)*x(2)
+!!@endverbatim
+!
+      module solver_33_array
+!
+      use m_precision
+!
+      implicit none
+!
+!------------------------------------------------------------------
+!
+      contains
+!
+!------------------------------------------------------------------
+!
+      subroutine solve_33_array(x, b, a)
+!
+      real(kind = kreal), intent(in) :: b(3)
+      real(kind = kreal), intent(in) :: a(3,3)
+!
+      real(kind = kreal), intent(inout) :: x(3) 
+!
+      real(kind = kreal) :: aj
+!
+!
+       aj =  a(1,1)*a(2,2)*a(3,3) - a(3,1)*a(2,2)*a(1,3)                &
+     &     + a(2,1)*a(3,2)*a(1,3) - a(2,1)*a(1,2)*a(3,3)                &
+     &     + a(3,1)*a(1,2)*a(2,3) - a(1,1)*a(3,2)*a(2,3)
+!
+       if ( aj .eq. 0.0d0 ) then 
+        aj = 1.0d99
+       else
+        aj = 1.0d0 / aj
+       end if
+!
+       x(1) =  b(1)*a(2,2)*a(3,3) - b(3)*a(2,2)*a(1,3)                  &
+     &       + b(2)*a(3,2)*a(1,3) - b(2)*a(1,2)*a(3,3)                  &
+     &       + b(3)*a(1,2)*a(2,3) - b(1)*a(3,2)*a(2,3)
+       x(2) =  a(1,1)*b(2)*a(3,3) - a(3,1)*b(2)*a(1,3)                  &
+     &       + a(2,1)*b(3)*a(1,3) - a(2,1)*b(1)*a(3,3)                  &
+     &       + a(3,1)*b(1)*a(2,3) - a(1,1)*b(3)*a(2,3)
+       x(3) =  a(1,1)*a(2,2)*b(3) - a(3,1)*a(2,2)*b(1)                  &
+     &       + a(2,1)*a(3,2)*b(1) - a(2,1)*a(1,2)*b(3)                  &
+     &       + a(3,1)*a(1,2)*b(2) - a(1,1)*a(3,2)*b(2)
+!
+       x(1) = x(1) *aj
+       x(2) = x(2) *aj
+       x(3) = x(3) *aj
+!
+       end subroutine solve_33_array
+!
+! ----------------------------------------------------------------------
+!
+      subroutine solve_22_array(x, b, a)
+!
+      real(kind = kreal), intent(in) :: b(2)
+      real(kind = kreal), intent(in) :: a(2,2)
+!
+      real(kind = kreal), intent(inout) :: x(2) 
+!
+      real(kind = kreal) :: aj
+!
+!
+       aj =  a(1,1)*a(2,2) - a(2,1)*a(1,2)
+!
+       if ( aj .eq. 0.0d0 ) then 
+        aj = 1.0d99
+       else
+        aj = 1.0d0 / aj
+       end if
+!
+       x(1) =  ( a(2,2)*b(1) - a(1,2)*b(2) ) * aj
+       x(2) =  (-a(2,1)*b(1) + a(1,1)*b(2) ) * aj
+!
+       end subroutine solve_22_array
+!
+! ----------------------------------------------------------------------
+!
+       end module solver_33_array","#include <iostream>
+#include <cmath>
+
+using namespace std;
+
+// Prototype of the functions
+void solve_33_array(double x[], double b[], double a[][3]);
+void solve_22_array(double x[], double b[], double a[][2]);
+
+void solve_33_array(double x[], double b[], double a[][3]) {
+    double aj =
+        a[0][0]*a[1][1]*a[2][2] - a[2][0]*a[1][1]*a[0][2]
+        + a[1][0]*a[2][1]*a[0][2] - a[1][0]*a[0][1]*a[2][2]
+        + a[2][0]*a[0][1]*a[1][2] - a[0][0]*a[2][1]*a[1][2];
+    if (fabs(aj) < 1e-10) aj = 1.0e99;
+    else aj = 1.0 / aj;
+    
+    x[0] = (b[0]*a[1][1]*a[2][2] - b[2]*a[1][1]*a[0][2]
+            + b[1]*a[2][1]*a[0][2] - b[1]*a[0][1]*a[2][2]
+            + b[2]*a[0][1]*a[1][2] - b[0]*a[2][1]*a[1][2]) * aj;
+    x[1] = (a[0][0]*b[1]*a[2][2] - a[2][0]*b[1]*a[0][2]
+            + a[1][0]*b[2]*a[0][2] - a[1][0]*b[0]*a[2][2]
+            + a[2][0]*b[0]*a[1][2] - a[0][0]*b[2]*a[1][2]) * aj;
+    x[2] = (a[0][0]*a[1][1]*b[2] - a[2][0]*a[1][1]*b[0]
+            + a[1][0]*a[2][1]*b[0] - a[1][0]*a[0][1]*b[2]
+            + a[2][0]*a[0][1]*b[1] - a[0][0]*a[2][1]*b[1]) * aj;
+}
+
+void solve_22_array(double x[], double b[], double a[][2]) {
+    double aj = a[0][0]*a[1][1] - a[1][0]*a[0][1];
+    if (fabs(aj) < 1e-10) aj = 1.0e99;
+    else aj = 1.0 / aj;
+    
+    x[0] = (a[1][1]*b[0] - a[0][1]*b[1]) * aj;
+    x[1] = (-a[1][0]*b[0] + a[0][0]*b[1]) * aj;
+}",True,
